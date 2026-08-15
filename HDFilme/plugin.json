@@ -1,19 +1,22 @@
-{
-  "packageName": "com.provider.hdfilme",
-  "name": "HDFilme",
-  "version": 1,
-  "baseUrl": "https://hdfilme.win",
-  "iconUrl": "",
-  "description": "HDFilme Provider für SkyStream",
-  "authors": [
-    "Mohamadwwg"
-  ],
-  "languages": [
-    "de"
-  ],
-  "categories": [
-    "movies",
-    "series"
-  ],
-  "script": "plugin.js"
-}
+[
+  {
+    "packageName": "com.provider.hdfilme",
+    "name": "HDFilme",
+    "version": 1,
+    "baseUrl": "https://hdfilme.win",
+    "iconUrl": "",
+    "description": "HDFilme Provider für SkyStream",
+    "authors": [
+      "Mohamadwwg"
+    ],
+    "languages": [
+      "de"
+    ],
+    "categories": [
+      "movies",
+      "series"
+    ],
+    "script": "plugin.js",
+    "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/com.provider.hdfilme.sky"
+  }
+]
