@@ -1,3 +1,5 @@
+import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
+
 (function() {
     const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
@@ -131,35 +133,47 @@
         }
     }
 
-   import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
-
-async function loadStreams(url, cb) {
+    async function loadStreams(url, cb) {
     try {
-        const response = await fetch(url);
-        const html = await response.text();
+        const res = await http_get(url, getHeaders(url));
+        const html = res ? (res.body || "") : "";
 
-        // 1. Alle Iframe / Embed-URLs der Hoster auflisten
-        const iframes = await parse_html(html, "iframe", "src");
-        let streams = [];
+        const streams = [];
+        const embedUrls = new Set();
 
-        // 2. Hoster-URLs durch die passenden Extractors jagen
-        for (const embedUrl of iframes) {
-            try {
-                if (embedUrl.includes('voe') || embedUrl.includes('v-o-e')) {
-                    const extractor = new Voe();
-                    const res = await extractor.getUrl(embedUrl);
-                    streams.push(...res);
-                } else if (embedUrl.includes('streamtape')) {
-                    const extractor = new StreamTape();
-                    const res = await extractor.getUrl(embedUrl);
-                    streams.push(...res);
-                } else if (embedUrl.includes('mixdrop')) {
-                    const extractor = new MixDrop();
-                    const res = await extractor.getUrl(embedUrl);
-                    streams.push(...res);
+        // 1. Suche nach iframe src
+        const iframeRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
+        let match;
+        while ((match = iframeRegex.exec(html)) !== null) {
+            embedUrls.add(match[1]);
+        }
+
+        // 2. Suche nach data-link / data-src (HDFilme Host-Buttons)
+        const dataLinkRegex = /data-(?:link|src|url)=["']([^"']+)["']/gi;
+        while ((match = dataLinkRegex.exec(html)) !== null) {
+            embedUrls.add(match[1]);
+        }
+
+        const extractors = [
+            { name: "voe", instance: new Voe() },
+            { name: "streamtape", instance: new StreamTape() },
+            { name: "mixdrop", instance: new MixDrop() }
+        ];
+
+        for (const embedUrl of embedUrls) {
+            for (const ext of extractors) {
+                if (embedUrl.includes(ext.name) || (ext.name === "voe" && embedUrl.includes("v-o-e"))) {
+                    try {
+                        const result = await ext.instance.getUrl(embedUrl);
+                        if (Array.isArray(result)) {
+                            streams.push(...result);
+                        } else if (result) {
+                            streams.push(result);
+                        }
+                    } catch (err) {
+                        console.error(`Fehler bei Extractor ${ext.name}:`, err);
+                    }
                 }
-            } catch (err) {
-                console.error("Extractor-Fehler:", embedUrl, err);
             }
         }
 
