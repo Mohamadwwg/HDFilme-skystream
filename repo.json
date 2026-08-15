@@ -1,14 +1,8 @@
 {
   "name": "Mohamad SkyStream Repo",
-  "id": "com.mohamad.hdfilme.repo",
-  "plugins": [
-    {
-      "id": "com.provider.hdfilme",
-      "name": "HDFilme",
-      "version": "1.0.0",
-      "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/HDFilme/plugin.js"
-    }
-  ],
+  "packageName": "com.mohamad.hdfilme.repo",
+  "description": "HDFilme Provider für SkyStream",
+  "manifestVersion": 1,
   "pluginLists": [
     "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/plugins.json"
   ]

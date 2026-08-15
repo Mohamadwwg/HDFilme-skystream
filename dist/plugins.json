@@ -1,8 +1,8 @@
 [
   {
-    "packageName": "com.mohamad.hdfilme",
+    "packageName": "com.provider.hdfilme",
     "name": "HDFilme",
-    "version": 2,
+    "version": 1,
     "baseUrl": "https://hdfilme.win",
     "description": "HDFilme Provider für SkyStream",
     "authors": [
@@ -13,8 +13,8 @@
     ],
     "categories": [
       "Movies",
-      "Series"
+      "TvSeries"
     ],
-    "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/com.mohamad.hdfilme.sky"
+    "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/com.provider.hdfilme.sky"
   }
 ]
