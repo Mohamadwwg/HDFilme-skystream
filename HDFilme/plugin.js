@@ -12,6 +12,14 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
         return headers;
     }
 
+    function fixUrl(url) {
+        if (!url) return null;
+        let cleaned = url.trim();
+        if (cleaned.startsWith("//")) return "https:" + cleaned;
+        if (cleaned.startsWith("/")) return `${manifest.baseUrl}${cleaned}`;
+        return cleaned;
+    }
+
     function extractItems(html) {
         const items = [];
         const base = manifest.baseUrl;
@@ -24,17 +32,14 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
 
             if (!url || url === "/" || url === base || url === `${base}/` || url.includes("javascript:") || url.includes("#") || url.includes("wp-content")) continue;
 
-            const imgMatch = innerHtml.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["']/i);
+            const imgMatch = innerHtml.match(/<img[^>]+(?:src|data-src|data-lazy-src)=["']([^"']+)["']/i);
             const titleMatch = innerHtml.match(/alt=["']([^"']+)["']/i) || 
                                innerHtml.match(/<h[2-4][^>]*>([^<]+)<\/h[2-4]>/i) || 
                                innerHtml.match(/class=["'][^"']*(?:title|name)[^"']*["'][^>]*>([^<]+)<\//i);
 
             if (imgMatch && titleMatch) {
-                if (url.startsWith("/")) url = `${base}${url}`;
-                let poster = imgMatch[1];
-                if (poster.startsWith("//")) poster = "https:" + poster;
-                if (poster.startsWith("/")) poster = `${base}${poster}`;
-
+                const fullUrl = fixUrl(url);
+                const poster = fixUrl(imgMatch[1]);
                 let title = titleMatch[1]
                     .replace(/<[^>]*>/g, "")
                     .replace(/\s*poster$/i, "")
@@ -42,12 +47,13 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
                     .replace(/&amp;/g, "&")
                     .trim();
 
-                if (title && !items.find(i => i.url === url)) {
+                if (title && !items.find(i => i.url === fullUrl)) {
                     items.push(new MultimediaItem({
                         title: title,
-                        url: url,
+                        url: fullUrl,
                         posterUrl: poster,
-                        type: url.includes("serie") || url.includes("season") ? "series" : "movie"
+                        type: fullUrl.includes("serie") || fullUrl.includes("season") ? "series" : "movie",
+                        headers: getHeaders(fullUrl)
                     }));
                 }
             }
@@ -69,7 +75,7 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
             cb({
                 success: true,
                 data: {
-                    "Trending": items.slice(0, 5),
+                    "Trending": items.slice(0, 6),
                     "Aktuelle Filme & Serien": items
                 }
             });
@@ -94,25 +100,29 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
     // 3. Load Details
     async function load(url, cb) {
         try {
-            const targetUrl = url.startsWith("/") ? `${manifest.baseUrl}${url}` : url;
-            const res = await http_get(targetUrl, getHeaders(manifest.baseUrl));
+            const targetUrl = fixUrl(url);
+            const res = await http_get(targetUrl, getHeaders(targetUrl));
             const body = res ? (res.body || "") : "";
 
             const titleMatch = body.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || body.match(/<title>([^<]+)<\/title>/i);
             const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, "").replace(/\s*hdfilme.*$/i, "").trim() : "Unbekannt";
 
-            const descMatch = body.match(/<div class=["'](?:description|summary|entry-content)["'][^>]*>([\s\S]*?)<\/div>/i) || body.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+            const descMatch = body.match(/<div class=["'](?:description|summary|entry-content|f-desc)["'][^>]*>([\s\S]*?)<\/div>/i) || body.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
             const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, "").trim() : "";
 
-            const posterMatch = body.match(/<meta property=["']og:image["'] content=["']([^"']+)["']/i);
-            const posterUrl = posterMatch ? posterMatch[1] : null;
+            const posterMatch = body.match(/<meta property=["']og:image["'] content=["']([^"']+)["']/i) || 
+                                body.match(/<div class=["'][^"']*poster[^"']*["'][^>]*>\s*<img[^>]+(?:src|data-src)=["']([^"']+)["']/i) ||
+                                body.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*class=["'][^"']*poster[^"']*["']/i);
+            
+            const posterUrl = posterMatch ? fixUrl(posterMatch[1]) : null;
 
             const episodes = [
                 new Episode({
-                    name: "Film / Stream abspielen",
+                    name: title,
                     url: targetUrl,
                     season: 1,
                     episode: 1,
+                    posterUrl: posterUrl,
                     headers: getHeaders(targetUrl)
                 })
             ];
@@ -121,6 +131,8 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
                 title: title,
                 url: targetUrl,
                 posterUrl: posterUrl,
+                bannerUrl: posterUrl,
+                backgroundPosterUrl: posterUrl,
                 description: description,
                 type: targetUrl.includes("serie") ? "series" : "movie",
                 episodes: episodes,
@@ -135,7 +147,7 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
 
     function tryDecodeBase64(str) {
         try {
-            if (/^[A-Za-z0-9+/=]+$/.test(str) && str.length % 4 === 0) {
+            if (/^[A-Za-z0-9+/=]+$/.test(str) && str.length > 10 && str.length % 4 === 0) {
                 const decoded = atob(str);
                 if (decoded.startsWith("http://") || decoded.startsWith("https://") || decoded.startsWith("//")) {
                     return decoded;
@@ -145,28 +157,24 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
         return str;
     }
 
+    // 4. Load Streams
     async function loadStreams(url, cb) {
         try {
-            const res = await http_get(url, getHeaders(url));
+            const targetUrl = fixUrl(url);
+            const res = await http_get(targetUrl, getHeaders(targetUrl));
             const html = res ? (res.body || "") : "";
 
             const streams = [];
             const embedUrls = new Set();
 
-            const urlRegex = /(?:src|data-src|data-link|data-url|data-file|href)=["']([^"']+)["']/gi;
+            const urlRegex = /(?:src|data-src|data-link|data-url|href)=["']([^"']+)["']/gi;
             let match;
 
             while ((match = urlRegex.exec(html)) !== null) {
-                let rawLink = match[1];
-                if (!rawLink) continue;
+                let link = tryDecodeBase64(match[1]);
+                link = fixUrl(link);
 
-                let link = tryDecodeBase64(rawLink);
-
-                if (link.startsWith("//")) {
-                    link = "https:" + link;
-                }
-
-                if (/voe|v-o-e|streamtape|mixdrop|dood|filemoon/i.test(link)) {
+                if (link && /voe|v-o-e|fittingly|reputation|streamtape|mixdrop/i.test(link)) {
                     embedUrls.add(link);
                 }
             }
@@ -188,19 +196,28 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
                             if (result) {
                                 const list = Array.isArray(result) ? result : [result];
                                 for (const item of list) {
-                                    if (item && item.url) {
-                                        if (!item.headers || Object.keys(item.headers).length === 0) {
-                                            item.headers = getHeaders(embedUrl);
-                                        }
-                                        streams.push(item);
+                                    let videoUrl = typeof item === 'string' ? item : item.url;
+                                    let quality = item.quality || 0;
+                                    
+                                    if (videoUrl) {
+                                        streams.push(new StreamResult({
+                                            url: videoUrl,
+                                            source: `HDFilme - ${ext.name.toUpperCase()}`,
+                                            quality: quality,
+                                            headers: getHeaders(embedUrl)
+                                        }));
                                     }
                                 }
                             }
                         } catch (err) {
-                            console.error(`Fehler bei Extractor ${ext.name}:`, err);
+                            console.error(`Extractor error (${ext.name}):`, err);
                         }
                     }
                 }
+            }
+
+            if (streams.length === 0) {
+                return cb({ success: false, errorCode: "NO_STREAMS", message: "Keine abspielbaren Streams gefunden." });
             }
 
             cb({ success: true, data: streams });
@@ -209,7 +226,6 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
         }
     }
 
-    // Exportieren an SkyStream
     globalThis.getHome = getHome;
     globalThis.search = search;
     globalThis.load = load;
