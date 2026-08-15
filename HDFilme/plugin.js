@@ -1,4 +1,4 @@
-import { Voe, StreamTape, MixDrop } from 'skystream-extractors';Remove-Item -Recurse -Force .build, node_modules
+import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
 
 (function() {
     const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
@@ -134,54 +134,54 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors';Remove-Item -Rec
     }
 
     async function loadStreams(url, cb) {
-    try {
-        const res = await http_get(url, getHeaders(url));
-        const html = res ? (res.body || "") : "";
+        try {
+            const res = await http_get(url, getHeaders(url));
+            const html = res ? (res.body || "") : "";
 
-        const streams = [];
-        const embedUrls = new Set();
+            const streams = [];
+            const embedUrls = new Set();
 
-        // 1. Suche nach iframe src
-        const iframeRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
-        let match;
-        while ((match = iframeRegex.exec(html)) !== null) {
-            embedUrls.add(match[1]);
-        }
+            // 1. Suche nach iframe src
+            const iframeRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
+            let match;
+            while ((match = iframeRegex.exec(html)) !== null) {
+                embedUrls.add(match[1]);
+            }
 
-        // 2. Suche nach data-link / data-src (HDFilme Host-Buttons)
-        const dataLinkRegex = /data-(?:link|src|url)=["']([^"']+)["']/gi;
-        while ((match = dataLinkRegex.exec(html)) !== null) {
-            embedUrls.add(match[1]);
-        }
+            // 2. Suche nach data-link / data-src (HDFilme Host-Buttons)
+            const dataLinkRegex = /data-(?:link|src|url)=["']([^"']+)["']/gi;
+            while ((match = dataLinkRegex.exec(html)) !== null) {
+                embedUrls.add(match[1]);
+            }
 
-        const extractors = [
-            { name: "voe", instance: new Voe() },
-            { name: "streamtape", instance: new StreamTape() },
-            { name: "mixdrop", instance: new MixDrop() }
-        ];
+            const extractors = [
+                { name: "voe", instance: new Voe() },
+                { name: "streamtape", instance: new StreamTape() },
+                { name: "mixdrop", instance: new MixDrop() }
+            ];
 
-        for (const embedUrl of embedUrls) {
-            for (const ext of extractors) {
-                if (embedUrl.includes(ext.name) || (ext.name === "voe" && embedUrl.includes("v-o-e"))) {
-                    try {
-                        const result = await ext.instance.getUrl(embedUrl);
-                        if (Array.isArray(result)) {
-                            streams.push(...result);
-                        } else if (result) {
-                            streams.push(result);
+            for (const embedUrl of embedUrls) {
+                for (const ext of extractors) {
+                    if (embedUrl.includes(ext.name) || (ext.name === "voe" && embedUrl.includes("v-o-e"))) {
+                        try {
+                            const result = await ext.instance.getUrl(embedUrl);
+                            if (Array.isArray(result)) {
+                                streams.push(...result);
+                            } else if (result) {
+                                streams.push(result);
+                            }
+                        } catch (err) {
+                            console.error(`Fehler bei Extractor ${ext.name}:`, err);
                         }
-                    } catch (err) {
-                        console.error(`Fehler bei Extractor ${ext.name}:`, err);
                     }
                 }
             }
-        }
 
-        cb({ success: true, data: streams });
-    } catch (e) {
-        cb({ success: false, errorCode: "STREAM_ERROR", message: e.toString() });
+            cb({ success: true, data: streams });
+        } catch (e) {
+            cb({ success: false, errorCode: "STREAM_ERROR", message: e.toString() });
+        }
     }
-}
 
     // Exportieren an SkyStream
     globalThis.getHome = getHome;
