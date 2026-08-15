@@ -167,42 +167,45 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors/dist/index.js';
             const streams = [];
             const embedUrls = new Set();
 
-            const urlRegex = /(?:src|data-src|data-link|data-url|href)=["']([^"']+)["']/gi;
-            let match;
+            // Suchen nach Links & iframe SRCs
+            const regexes = [
+                /<iframe[^>]+(?:src|data-src)=["']([^"']+)["']/gi,
+                /(?:src|data-src|data-link|data-url|href)=["']([^"']+)["']/gi
+            ];
 
-            while ((match = urlRegex.exec(html)) !== null) {
-                let link = tryDecodeBase64(match[1]);
-                link = fixUrl(link);
+            for (const reg of regexes) {
+                let match;
+                while ((match = reg.exec(html)) !== null) {
+                    let link = tryDecodeBase64(match[1]);
+                    link = fixUrl(link);
 
-                if (link && /voe|v-o-e|fittingly|reputation|streamtape|mixdrop/i.test(link)) {
-                    embedUrls.add(link);
+                    if (link && /voe|v-o-e|fittingly|reputation|jumper|yugen|streamtape|mixdrop/i.test(link)) {
+                        embedUrls.add(link);
+                    }
                 }
             }
 
             const extractors = [
-                { name: "voe", instance: new Voe() },
-                { name: "streamtape", instance: new StreamTape() },
-                { name: "mixdrop", instance: new MixDrop() }
+                { name: "VOE", instance: new Voe(), matcher: /voe|v-o-e|fittingly|reputation|jumper|yugen/i },
+                { name: "StreamTape", instance: new StreamTape(), matcher: /streamtape/i },
+                { name: "MixDrop", instance: new MixDrop(), matcher: /mixdrop/i }
             ];
 
             for (const embedUrl of embedUrls) {
                 for (const ext of extractors) {
-                    const isVoe = ext.name === "voe" && /voe|v-o-e|fittingly|reputation/i.test(embedUrl);
-                    const isOther = embedUrl.toLowerCase().includes(ext.name);
-
-                    if (isVoe || isOther) {
+                    if (ext.matcher.test(embedUrl)) {
                         try {
                             const result = await ext.instance.getUrl(embedUrl);
                             if (result) {
                                 const list = Array.isArray(result) ? result : [result];
                                 for (const item of list) {
                                     let videoUrl = typeof item === 'string' ? item : item.url;
-                                    let quality = item.quality || 0;
+                                    let quality = (typeof item === 'object' && item.quality) ? item.quality : 1080;
                                     
                                     if (videoUrl) {
                                         streams.push(new StreamResult({
                                             url: videoUrl,
-                                            source: `HDFilme - ${ext.name.toUpperCase()}`,
+                                            source: `HDFilme - ${ext.name}`,
                                             quality: quality,
                                             headers: getHeaders(embedUrl)
                                         }));
