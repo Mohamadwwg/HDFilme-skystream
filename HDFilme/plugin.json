@@ -1,17 +1,10 @@
 {
-  "packageName": "com.provider.hdfilme",
+  "packageName": "com.mohamad.hdfilme",
   "name": "HDFilme",
   "version": 1,
   "baseUrl": "https://hdfilme.win",
   "description": "HDFilme Provider für SkyStream",
-  "authors": [
-    "Mohamadwwg"
-  ],
-  "languages": [
-    "de"
-  ],
-  "categories": [
-    "Movies",
-    "TvSeries"
-  ]
+  "authors": ["Mohamadwwg"],
+  "languages": ["de"],
+  "categories": ["Movies", "TvSeries"]
 }
