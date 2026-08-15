@@ -1,179 +1,129 @@
 import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
 
-(function() {
-    const userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-    function getHeaders(referer = null) {
-        const headers = {
-            "User-Agent": userAgent,
-            "Accept-Language": "de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7"
-        };
-        if (referer) headers["Referer"] = referer;
-        return headers;
-    }
-
-    function extractItems(html) {
-        const items = [];
-        const base = manifest.baseUrl;
-        const regex = /<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
-        let match;
-
-        while ((match = regex.exec(html)) !== null) {
-            let url = match[1];
-            const innerHtml = match[2];
-
-            if (!url || url === "/" || url === base || url === `${base}/` || url.includes("javascript:") || url.includes("#") || url.includes("wp-content")) continue;
-
-            const imgMatch = innerHtml.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["']/i);
-            const titleMatch = innerHtml.match(/alt=["']([^"']+)["']/i) || 
-                               innerHtml.match(/<h[2-4][^>]*>([^<]+)<\/h[2-4]>/i) || 
-                               innerHtml.match(/class=["'][^"']*(?:title|name)[^"']*["'][^>]*>([^<]+)<\//i);
-
-            if (imgMatch && titleMatch) {
-                if (url.startsWith("/")) url = `${base}${url}`;
-                let poster = imgMatch[1];
-                if (poster.startsWith("//")) poster = "https:" + poster;
-                if (poster.startsWith("/")) poster = `${base}${poster}`;
-
-                let title = titleMatch[1]
-                    .replace(/<[^>]*>/g, "")
-                    .replace(/\s*poster$/i, "")
-                    .replace(/&#039;/g, "'")
-                    .replace(/&amp;/g, "&")
-                    .trim();
-
-                if (title && !items.find(i => i.url === url)) {
-                    items.push(new MultimediaItem({
-                        title: title,
-                        url: url,
-                        posterUrl: poster,
-                        type: url.includes("serie") || url.includes("season") ? "series" : "movie"
-                    }));
-                }
-            }
-        }
-        return items;
-    }
-
-    // 1. Dashboard Categories
+(function () {
     async function getHome(cb) {
         try {
-            const res = await http_get(manifest.baseUrl, getHeaders());
-            const body = res ? (res.body || "") : "";
-            const items = extractItems(body);
+            const url = `${manifest.baseUrl}/`;
+            const response = await fetch(url);
+            const html = await response.text();
 
-            if (items.length === 0) {
-                return cb({ success: false, errorCode: "HOME_ERROR", message: "Keine Inhalte auf der Startseite gefunden." });
+            const items = [];
+            const titles = await parse_html(html, ".short-title a", "text");
+            const urls = await parse_html(html, ".short-title a", "href");
+            const posters = await parse_html(html, ".short-img img", "src");
+
+            for (let i = 0; i < titles.length; i++) {
+                items.push(new MultimediaItem({
+                    title: titles[i],
+                    url: urls[i],
+                    posterUrl: posters[i],
+                    type: "movie"
+                }));
             }
 
-            cb({
-                success: true,
-                data: {
-                    "Trending": items.slice(0, 5),
-                    "Aktuelle Filme & Serien": items
-                }
-            });
+            cb({ success: true, data: { "Trending": items } });
         } catch (e) {
-            cb({ success: false, errorCode: "HOME_ERROR", message: e.message });
+            cb({ success: false, errorCode: "FETCH_ERROR", message: e.toString() });
         }
     }
 
-    // 2. Search Queries
     async function search(query, cb) {
         try {
-            const searchUrl = `${manifest.baseUrl}/?s=${encodeURIComponent(query)}`;
-            const res = await http_get(searchUrl, getHeaders(manifest.baseUrl));
-            const items = extractItems(res ? (res.body || "") : "");
+            const searchUrl = `${manifest.baseUrl}/index.php?story=${encodeURIComponent(query)}&do=search&subaction=search`;
+            const response = await fetch(searchUrl);
+            const html = await response.text();
+
+            const items = [];
+            const titles = await parse_html(html, ".short-title a", "text");
+            const urls = await parse_html(html, ".short-title a", "href");
+            const posters = await parse_html(html, ".short-img img", "src");
+
+            for (let i = 0; i < titles.length; i++) {
+                items.push(new MultimediaItem({
+                    title: titles[i],
+                    url: urls[i],
+                    posterUrl: posters[i],
+                    type: "movie"
+                }));
+            }
 
             cb({ success: true, data: items });
         } catch (e) {
-            cb({ success: false, errorCode: "SEARCH_ERROR", message: e.message });
+            cb({ success: false, errorCode: "SEARCH_ERROR", message: e.toString() });
         }
     }
 
-    // 3. Load Details
     async function load(url, cb) {
         try {
-            const targetUrl = url.startsWith("/") ? `${manifest.baseUrl}${url}` : url;
-            const res = await http_get(targetUrl, getHeaders(manifest.baseUrl));
-            const body = res ? (res.body || "") : "";
+            const response = await fetch(url);
+            const html = await response.text();
 
-            const titleMatch = body.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || body.match(/<title>([^<]+)<\/title>/i);
-            const title = titleMatch ? titleMatch[1].replace(/<[^>]*>/g, "").replace(/\s*hdfilme.*$/i, "").trim() : "Unbekannt";
+            const title = (await parse_html(html, "h1", "text"))[0] || "Unbekannt";
+            const posterUrl = (await parse_html(html, ".full-img img", "src"))[0] || "";
+            const description = (await parse_html(html, ".full-text", "text"))[0] || "";
 
-            const descMatch = body.match(/<div class=["'](?:description|summary|entry-content)["'][^>]*>([\s\S]*?)<\/div>/i) || body.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
-            const description = descMatch ? descMatch[1].replace(/<[^>]*>/g, "").trim() : "";
-
-            const posterMatch = body.match(/<meta property=["']og:image["'] content=["']([^"']+)["']/i);
-            const posterUrl = posterMatch ? posterMatch[1] : null;
-
-            const episodes = [
-                new Episode({
-                    name: "Film / Stream abspielen",
-                    url: targetUrl,
-                    season: 1,
-                    episode: 1,
-                    headers: getHeaders(targetUrl)
-                })
-            ];
-
-            const mediaItem = new MultimediaItem({
+            const item = new MultimediaItem({
                 title: title,
-                url: targetUrl,
+                url: url,
                 posterUrl: posterUrl,
-                description: description,
-                type: targetUrl.includes("serie") ? "series" : "movie",
-                episodes: episodes,
-                headers: getHeaders(targetUrl)
+                type: "movie",
+                description: description
             });
 
-            cb({ success: true, data: mediaItem });
+            cb({ success: true, data: item });
         } catch (e) {
-            cb({ success: false, errorCode: "LOAD_ERROR", message: e.message });
+            cb({ success: false, errorCode: "LOAD_ERROR", message: e.toString() });
         }
     }
 
     async function loadStreams(url, cb) {
         try {
-            const res = await http_get(url, getHeaders(url));
-            const html = res ? (res.body || "") : "";
+            const response = await fetch(url);
+            const html = await response.text();
 
-            const streams = [];
-            const embedUrls = new Set();
+            let streams = [];
 
-            // 1. Suche nach iframe src
-            const iframeRegex = /<iframe[^>]+src=["']([^"']+)["']/gi;
-            let match;
-            while ((match = iframeRegex.exec(html)) !== null) {
-                embedUrls.add(match[1]);
+            // 1. Suche nach iframes, data-link, data-src oder src-Attributen
+            let embedUrls = [];
+            const iframes = await parse_html(html, "iframe", "src");
+            const dataLinks = await parse_html(html, "[data-link]", "data-link");
+            const dataSrcs = await parse_html(html, "[data-src]", "data-src");
+            
+            embedUrls = [...iframes, ...dataLinks, ...dataSrcs].filter(Boolean);
+
+            // Falls direkt im HTML URLs stehen, Regex-Fallback nutzen
+            if (embedUrls.length === 0) {
+                const matches = html.match(/https?:\/\/[^\s"'<>]+(?:voe|streamtape|mixdrop)[^\s"'<>]+/gi);
+                if (matches) {
+                    embedUrls = [...new Set(matches)];
+                }
             }
 
-            // 2. Suche nach data-link / data-src (HDFilme Host-Buttons)
-            const dataLinkRegex = /data-(?:link|src|url)=["']([^"']+)["']/gi;
-            while ((match = dataLinkRegex.exec(html)) !== null) {
-                embedUrls.add(match[1]);
-            }
+            for (let embedUrl of embedUrls) {
+                if (embedUrl.startsWith("//")) embedUrl = "https:" + embedUrl;
 
-            const extractors = [
-                { name: "voe", instance: new Voe() },
-                { name: "streamtape", instance: new StreamTape() },
-                { name: "mixdrop", instance: new MixDrop() }
-            ];
-
-            for (const embedUrl of embedUrls) {
-                for (const ext of extractors) {
-                    if (embedUrl.includes(ext.name) || (ext.name === "voe" && embedUrl.includes("v-o-e"))) {
-                        try {
-                            const result = await ext.instance.getUrl(embedUrl);
-                            if (Array.isArray(result)) {
-                                streams.push(...result);
-                            } else if (result) {
-                                streams.push(result);
-                            }
-                        } catch (err) {
-                            console.error(`Fehler bei Extractor ${ext.name}:`, err);
-                        }
+                try {
+                    if (embedUrl.includes('voe') || embedUrl.includes('v-o-e')) {
+                        const extractor = new Voe();
+                        const res = await extractor.getUrl(embedUrl);
+                        if (res?.length) streams.push(...res);
+                    } else if (embedUrl.includes('streamtape')) {
+                        const extractor = new StreamTape();
+                        const res = await extractor.getUrl(embedUrl);
+                        if (res?.length) streams.push(...res);
+                    } else if (embedUrl.includes('mixdrop')) {
+                        const extractor = new MixDrop();
+                        const res = await extractor.getUrl(embedUrl);
+                        if (res?.length) streams.push(...res);
+                    } else {
+                        streams.push(new StreamResult({
+                            url: embedUrl,
+                            quality: "HD",
+                            headers: { "Referer": manifest.baseUrl }
+                        }));
                     }
+                } catch (err) {
+                    console.error("Extractor Fehler:", embedUrl, err);
                 }
             }
 
@@ -183,7 +133,6 @@ import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
         }
     }
 
-    // Exportieren an SkyStream
     globalThis.getHome = getHome;
     globalThis.search = search;
     globalThis.load = load;
