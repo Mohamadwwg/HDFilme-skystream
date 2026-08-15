@@ -1,0 +1,18 @@
+{
+  "name": "skystream-extractors",
+  "version": "1.3.7",
+  "description": "SkyStream extractor library — 1-to-1 port of CloudStream extractors",
+  "main": "dist/index.js",
+  "sideEffects": false,
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node test-extractor.js"
+  },
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "jsdom": "^27.0.1",
+    "ts-jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  }
+}

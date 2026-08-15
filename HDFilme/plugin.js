@@ -131,68 +131,43 @@
         }
     }
 
-    // 4. Streams / Video-Hoster Extraction
-    // 4. Streams / Video-Hoster Extraction
-    async function loadStreams(url, cb) {
-        try {
-            const targetUrl = typeof url === "object" && url.url ? url.url : url;
-            const streams = [];
+   import { Voe, StreamTape, MixDrop } from 'skystream-extractors';
 
-            const res = await http_get(targetUrl, getHeaders(targetUrl));
-            const html = res ? (res.body || "") : "";
+async function loadStreams(url, cb) {
+    try {
+        const response = await fetch(url);
+        const html = await response.text();
 
-            let embedUrl = null;
+        // 1. Alle Iframe / Embed-URLs der Hoster auflisten
+        const iframes = await parse_html(html, "iframe", "src");
+        let streams = [];
 
-            // IMDb-ID suchen & API abfragen
-            const imdbMatch = html.match(/var\s+imdb\s*=\s*'([^']+)';/i);
-            if (imdbMatch && imdbMatch[1]) {
-                try {
-                    const apiRes = await http_get(`https://meinecloud.click/serials.php?task=check&id_imdb=${imdbMatch[1]}`, getHeaders());
-                    if (apiRes && apiRes.body) {
-                        const apiData = JSON.parse(apiRes.body);
-                        if (apiData && apiData.exists && apiData.player_url) {
-                            embedUrl = apiData.player_url;
-                        }
-                    }
-                } catch (e) {
-                    // API Fallback
+        // 2. Hoster-URLs durch die passenden Extractors jagen
+        for (const embedUrl of iframes) {
+            try {
+                if (embedUrl.includes('voe') || embedUrl.includes('v-o-e')) {
+                    const extractor = new Voe();
+                    const res = await extractor.getUrl(embedUrl);
+                    streams.push(...res);
+                } else if (embedUrl.includes('streamtape')) {
+                    const extractor = new StreamTape();
+                    const res = await extractor.getUrl(embedUrl);
+                    streams.push(...res);
+                } else if (embedUrl.includes('mixdrop')) {
+                    const extractor = new MixDrop();
+                    const res = await extractor.getUrl(embedUrl);
+                    streams.push(...res);
                 }
-            }
-
-            // Fallback-Iframe aus JS
-            if (!embedUrl) {
-                const fallbackMatch = html.match(/iframe\.src\s*=\s*'([^']+)';/i);
-                if (fallbackMatch && fallbackMatch[1]) {
-                    embedUrl = fallbackMatch[1];
-                }
-            }
-
-            if (embedUrl) {
-                if (embedUrl.startsWith("//")) embedUrl = "https:" + embedUrl;
-
-                if (typeof extractors !== "undefined" && extractors.extract) {
-                    const extracted = await extractors.extract(embedUrl);
-                    streams.push(...extracted);
-                } else {
-                    // Sichere Instanziierung ohne "new Stream"
-                    const streamObj = typeof ExtractorStream !== "undefined" 
-                        ? new ExtractorStream({ name: "HDFilme Player", url: embedUrl, quality: "HD" })
-                        : { name: "HDFilme Player", url: embedUrl, quality: "HD" };
-                    
-                    streams.push(streamObj);
-                }
-            }
-
-            if (typeof cb === "function") {
-                cb({ success: true, data: streams });
-            }
-            return streams;
-        } catch (e) {
-            if (typeof cb === "function") {
-                cb({ success: false, errorCode: "STREAM_ERROR", message: e.message });
+            } catch (err) {
+                console.error("Extractor-Fehler:", embedUrl, err);
             }
         }
+
+        cb({ success: true, data: streams });
+    } catch (e) {
+        cb({ success: false, errorCode: "STREAM_ERROR", message: e.toString() });
     }
+}
 
     // Exportieren an SkyStream
     globalThis.getHome = getHome;
