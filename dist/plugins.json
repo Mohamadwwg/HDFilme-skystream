@@ -1,5 +1,6 @@
 [
   {
+    "id": "com.provider.hdfilme",
     "name": "HDFilme",
     "packageName": "com.provider.hdfilme",
     "version": 1,
