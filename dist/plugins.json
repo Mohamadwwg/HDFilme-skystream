@@ -1,6 +1,6 @@
 [
   {
-    "packageName": "com.provider.hdfilme",
+    "packageName": "com.mohamad.hdfilme",
     "name": "HDFilme",
     "version": 2,
     "baseUrl": "https://hdfilme.win",
@@ -15,6 +15,6 @@
       "Movies",
       "Series"
     ],
-    "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/com.provider.hdfilme.sky"
+    "url": "https://raw.githubusercontent.com/Mohamadwwg/HDFilme-skystream/main/dist/com.mohamad.hdfilme.sky"
   }
 ]
