@@ -1,0 +1,28 @@
+export class SubtitleHelper {
+  static fromLanguageToTagIETF(lang: string): string {
+    // Basic mapping, to be expanded
+    const lower = lang.toLowerCase();
+    if (lower === 'english') return 'en';
+    if (lower === 'spanish') return 'es';
+    if (lower === 'hindi') return 'hi';
+    if (lower === 'japanese') return 'ja';
+    return lower.substring(0, 2);
+  }
+
+  static fromTagToEnglishLanguageName(tag: string): string {
+    const lower = tag.toLowerCase();
+    if (lower === 'en') return 'English';
+    if (lower === 'es') return 'Spanish';
+    if (lower === 'hi') return 'Hindi';
+    if (lower === 'ja') return 'Japanese';
+    return tag;
+  }
+
+  static getFlagFromIso(tag: string): string {
+    // Basic emoji flag map
+    if (tag === 'en') return '🇺🇸';
+    if (tag === 'ja') return '🇯🇵';
+    if (tag === 'hi') return '🇮🇳';
+    return '🏳️';
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "packageName": "com.mohamad.moflix",
+  "name": "Moflix",
+  "version": 1,
+  "baseUrl": "https://moflix.win",
+  "description": "Moflix Provider für SkyStream",
+  "authors": ["Mohamadwwg"],
+  "languages": ["de"],
+  "categories": ["Movies", "TvSeries"]
+}
